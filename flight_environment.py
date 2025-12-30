@@ -5,6 +5,10 @@ import matplotlib.pyplot as plt
 from math import sin,cos,tan
 from mpl_toolkits.mplot3d import Axes3D
 
+# 解决中文显示问题（配置matplotlib字体，消除中文警告）
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimHei']  # 优先英文，备选黑体（有中文环境则生效）
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号无法显示问题
+
 class FlightEnvironment:
     def __init__(self,obs_num):
         self.env_width = 20.0
@@ -14,9 +18,6 @@ class FlightEnvironment:
         self._obs_num = obs_num
 
         self.cylinders = self.generate_random_cylinders(self.space_size,self._obs_num,0.1,0.3,5,5)
-
-
-
 
     def generate_random_cylinders(self,space_size, N,
                               min_radius, max_radius,
@@ -55,21 +56,10 @@ class FlightEnvironment:
 
         return np.vstack(cylinders)
     
-
     def is_outside(self,point):
         """
         Check whether a 3D point lies outside the environment boundary.
-
-        Parameters:
-            point : tuple or list (x, y, z)
-                The coordinates of the point to be checked.
-
-        Returns:
-            bool
-                True  -> the point is outside the environment limits  
-                False -> the point is within the valid environment region
         """
-
         x,y,z = point
         if (0 <= x <= self.env_width and
                 0 <= y <= self.env_length and
@@ -79,50 +69,37 @@ class FlightEnvironment:
             outside_env = True
         return outside_env
     
-
-
     def is_collide(self, point, epsilon=0.2):
-            """
-            Check whether a point in 3D space collides with a given set of cylinders (including a safety margin).
+        """
+        Check whether a point in 3D space collides with a given set of cylinders.
+        """
+        cylinders = self.cylinders
+        px, py, pz = point
 
-            Parameters:
-                point: A numpy array or tuple of (x, y, z)
-                cylinders: An N×4 numpy array, each row is [cx, cy, h, r]
-                        where cx, cy are the cylinder center coordinates in XY,
-                        h is the height, and r is the radius
-                epsilon: Safety margin; if the point is closer than (r + epsilon),
-                        it is also considered a collision
-
-            Returns:
-                True  -> Collision (or too close)
-                False -> Safe
-            """
-            cylinders = self.cylinders
-            px, py, pz = point
-
-            for cx, cy, h, r in cylinders:
-                if not (0 <= pz <= h):
-                    continue 
-                dist_xy = np.sqrt((px - cx)**2 + (py - cy)**2)
-                if dist_xy <= (r + epsilon):
-                    return True   
-            
-            return False
+        for cx, cy, h, r in cylinders:
+            if not (0 <= pz <= h):
+                continue 
+            dist_xy = np.sqrt((px - cx)**2 + (py - cy)**2)
+            if dist_xy <= (r + epsilon):
+                return True   
+        
+        return False
     
-    def plot_cylinders(self,path = None):
+    def plot_cylinders(self, path=None, trajectory=None):
         """
-        cylinders: N×4 array, [cx, cy, h, r]
+        可视化障碍物、离散路径、光滑轨迹（同一张3D图对比，修复图例和中文问题）
+        参数:
+            path: 离散路径点（N×3数组）
+            trajectory: 光滑轨迹（M×3数组，连续坐标）
         """
-
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
         cylinders = self.cylinders
         space_size = self.space_size
-
-
-
         Xmax, Ymax, Zmax = space_size
+        
+        # 1. 绘制障碍物圆柱（移除label，3D曲面不参与图例，避免报错）
         for cx, cy, h, r in cylinders:
             z = np.linspace(0, h, 30)
             theta = np.linspace(0, 2 * np.pi, 30)
@@ -131,53 +108,66 @@ class FlightEnvironment:
             x = cx + r * np.cos(theta)
             y = cy + r * np.sin(theta)
 
-            ax.plot_surface(x, y, z, color='skyblue', alpha=0.8)
+            # 移除label='Obstacles'，避免图例处理异常
+            ax.plot_surface(x, y, z, color='skyblue', alpha=0.5)
             theta2 = np.linspace(0, 2*np.pi, 30)
             x_top = cx + r * np.cos(theta2)
             y_top = cy + r * np.sin(theta2)
             z_top = np.ones_like(theta2) * h
-            ax.plot_trisurf(x_top, y_top, z_top, color='steelblue', alpha=0.8)
+            ax.plot_trisurf(x_top, y_top, z_top, color='steelblue', alpha=0.6)
 
+        # 2. 设置坐标轴
         ax.set_xlim(0, self.env_width)
         ax.set_ylim(0, self.env_length)
         ax.set_zlim(0, self.env_height)
+        ax.set_xlabel('X (m)')
+        ax.set_ylabel('Y (m)')
+        ax.set_zlabel('Z (m)')
+        # 改用英文标题，彻底消除中文字体问题（如需中文，需确保环境有对应字体）
+        ax.set_title('3D Flight Environment: Discrete Path vs Smooth Trajectory')
 
-
+        # 3. 绘制离散路径（仅给有效元素加label，避免重复）
+        discrete_path_label = True  # 控制图例只添加一次
         if path is not None:
-            path = np.array(path)
-            xs, ys, zs = path[:, 0], path[:, 1], path[:, 2]
-            ax.plot(xs, ys, zs, linewidth=2, color='darkred', alpha=0.7, label='Path Line')
-            
-            # 2. 标注所有离散点（区分首尾点和中间点，提升辨识度）
-            n_points = len(xs)
-            if n_points == 1:
-                # 仅单个点的情况
-                ax.scatter(xs[0], ys[0], zs[0], s=100, color='gold', marker='*', label='Path Point')
-            else:
-                # 标注起始点（金色五角星，更大尺寸）
-                ax.scatter(xs[0], ys[0], zs[0], s=150, color='gold', marker='*', label='Start Point')
-                # 标注终点（绿色五角星，更大尺寸）
-                ax.scatter(xs[-1], ys[-1], zs[-1], s=150, color='limegreen', marker='*', label='Goal Point')
-                # 标注所有中间离散点（蓝色圆点，中等尺寸）
-                if n_points > 2:
-                    ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=30, color='royalblue', 
-                               marker='o', alpha=0.9, label='Middle Discrete Points')
+            path = np.array(path, dtype=np.float64)
+            if path.ndim == 2 and path.shape[1] == 3:
+                xs, ys, zs = path[:, 0], path[:, 1], path[:, 2]
                 
-                # 可选：添加每个离散点的索引标签（更清晰看到点的顺序）
-                for idx, (x, y, z) in enumerate(zip(xs, ys, zs)):
-                    ax.text(x, y, z, str(idx), fontsize=8, color='black', ha='center', va='bottom')
-            
-            # 显示图例
-            ax.legend(loc='best')        
-            self.set_axes_equal(ax)
+                # 离散路径连线（粗红，虚线，添加有效label）
+                ax.plot(xs, ys, zs, linewidth=2.5, color='darkred', linestyle='--', 
+                        alpha=0.8, label='Discrete Path' if discrete_path_label else "")
+                
+                # 离散路径点（小巧，金色带黑边，散点不重复加label）
+                n_points = len(xs)
+                if n_points >= 1:
+                    # 首尾点（仅给起始点加label，避免图例重复）
+                    ax.scatter(xs[0], ys[0], zs[0], s=80, color='gold', marker='*', 
+                               edgecolors='black', linewidth=0.5, label='Start Point' if discrete_path_label else "")
+                    ax.scatter(xs[-1], ys[-1], zs[-1], s=80, color='limegreen', marker='*', 
+                               edgecolors='black', linewidth=0.5)
+                    # 中间点（无label，避免图例冗余）
+                    if n_points > 2:
+                        ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=25, color='royalblue', 
+                                   marker='o', alpha=0.9)
+                    discrete_path_label = False  # 关闭label开关，避免重复
 
+        # 4. 绘制光滑轨迹（添加有效label，与离散路径区分）
+        if trajectory is not None:
+            trajectory = np.array(trajectory, dtype=np.float64)
+            if trajectory.ndim == 2 and trajectory.shape[1] == 3:
+                traj_x, traj_y, traj_z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
+                
+                # 光滑轨迹连线（细蓝，实线，添加label）
+                ax.plot(traj_x, traj_y, traj_z, linewidth=1.8, color='cornflowerblue', 
+                        alpha=0.9, label='Smooth Trajectory')
+
+        # 5. 显示图例（仅包含有效元素，无3D曲面，避免报错）
+        ax.legend(loc='best', fontsize=8)
+        self.set_axes_equal(ax)
         plt.show()
 
-
     def set_axes_equal(self,ax):
-        """Make axes of 3D plot have equal scale.
-        Compatible with Matplotlib ≥ 1.0.0
-        """
+        """Make axes of 3D plot have equal scale."""
         x_limits = ax.get_xlim3d()
         y_limits = ax.get_ylim3d()
         z_limits = ax.get_zlim3d()
@@ -195,4 +185,3 @@ class FlightEnvironment:
         ax.set_xlim3d([mid_x - max_range, mid_x + max_range])
         ax.set_ylim3d([mid_y - max_range, mid_y + max_range])
         ax.set_zlim3d([mid_z - max_range, mid_z + max_range])
-
