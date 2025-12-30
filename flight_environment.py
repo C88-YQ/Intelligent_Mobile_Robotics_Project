@@ -146,10 +146,31 @@ class FlightEnvironment:
         if path is not None:
             path = np.array(path)
             xs, ys, zs = path[:, 0], path[:, 1], path[:, 2]
-            ax.plot(xs, ys, zs, linewidth=2)     
-            ax.scatter(xs[0], ys[0], zs[0], s=40) 
-            ax.scatter(xs[-1], ys[-1], zs[-1], s=40) 
-        self.set_axes_equal(ax)
+            ax.plot(xs, ys, zs, linewidth=2, color='darkred', alpha=0.7, label='Path Line')
+            
+            # 2. 标注所有离散点（区分首尾点和中间点，提升辨识度）
+            n_points = len(xs)
+            if n_points == 1:
+                # 仅单个点的情况
+                ax.scatter(xs[0], ys[0], zs[0], s=100, color='gold', marker='*', label='Path Point')
+            else:
+                # 标注起始点（金色五角星，更大尺寸）
+                ax.scatter(xs[0], ys[0], zs[0], s=150, color='gold', marker='*', label='Start Point')
+                # 标注终点（绿色五角星，更大尺寸）
+                ax.scatter(xs[-1], ys[-1], zs[-1], s=150, color='limegreen', marker='*', label='Goal Point')
+                # 标注所有中间离散点（蓝色圆点，中等尺寸）
+                if n_points > 2:
+                    ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=30, color='royalblue', 
+                               marker='o', alpha=0.9, label='Middle Discrete Points')
+                
+                # 可选：添加每个离散点的索引标签（更清晰看到点的顺序）
+                for idx, (x, y, z) in enumerate(zip(xs, ys, zs)):
+                    ax.text(x, y, z, str(idx), fontsize=8, color='black', ha='center', va='bottom')
+            
+            # 显示图例
+            ax.legend(loc='best')        
+            self.set_axes_equal(ax)
+
         plt.show()
 
 

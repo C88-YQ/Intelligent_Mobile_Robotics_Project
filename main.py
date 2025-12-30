@@ -1,8 +1,12 @@
 from flight_environment import FlightEnvironment
+import numpy as np
+from path_planner import plan_flight_path
+from trajectory_generator import generate_and_plot_flight_trajectory
 
+# 初始化飞行环境
 env = FlightEnvironment(50)
-start = (1,2,0)
-goal = (18,18,3)
+start = (1, 2, 0)
+goal = (18, 18, 3)
 
 # --------------------------------------------------------------------------------------------------- #
 # Call your path planning algorithm here. 
@@ -13,13 +17,16 @@ goal = (18,18,3)
 #   - column 3 contains the z-coordinates of all path points
 # This `path` array will be provided to the `env` object for visualization.
 
-path = [[0,0,0],[1,1,1],[2,2,2],[3,3,3]]
+# 调用自主实现的路径规划算法生成碰撞-free路径
+path = plan_flight_path(env, start, goal)
+
+# 确保path是N×3的numpy数组（符合要求）
+path = np.array(path, dtype=np.float64)
 
 # --------------------------------------------------------------------------------------------------- #
 
-
+# 可视化3D路径
 env.plot_cylinders(path)
-
 
 # --------------------------------------------------------------------------------------------------- #
 #   Call your trajectory planning algorithm here. The algorithm should
@@ -34,20 +41,7 @@ env.plot_cylinders(path)
 #   points on the same figure to clearly show how the continuous trajectory
 #   follows these path points.
 
-
-
+# 调用自主实现的轨迹生成算法并可视化
+generate_and_plot_flight_trajectory(path)
 
 # --------------------------------------------------------------------------------------------------- #
-
-
-
-# You must manage this entire project using Git. 
-# When submitting your assignment, upload the project to a code-hosting platform 
-# such as GitHub or GitLab. The repository must be accessible and directly cloneable. 
-#
-# After cloning, running `python3 main.py` in the project root directory 
-# should successfully execute your program and display:
-#   1) the 3D path visualization, and
-#   2) the trajectory plot.
-#
-# You must also include the link to your GitHub/GitLab repository in your written report.
