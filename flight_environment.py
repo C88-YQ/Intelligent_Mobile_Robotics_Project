@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from math import sin,cos,tan
 from mpl_toolkits.mplot3d import Axes3D
 
-# 解决中文显示问题（配置matplotlib字体，消除中文警告）
 plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimHei']  # 优先英文，备选黑体（有中文环境则生效）
 plt.rcParams['axes.unicode_minus'] = False  # 解决负号无法显示问题
 
@@ -85,7 +84,7 @@ class FlightEnvironment:
         
         return False
     
-    def plot_cylinders(self, path=None, trajectory=None):
+    def plot_cylinders(self, path_thetastar=None, path_astar=None, trajectory_thetastar=None, trajectory_astar=None):
         """
         可视化障碍物、离散路径、光滑轨迹（同一张3D图对比，修复图例和中文问题）
         参数:
@@ -99,7 +98,6 @@ class FlightEnvironment:
         space_size = self.space_size
         Xmax, Ymax, Zmax = space_size
         
-        # 1. 绘制障碍物圆柱（移除label，3D曲面不参与图例，避免报错）
         for cx, cy, h, r in cylinders:
             z = np.linspace(0, h, 30)
             theta = np.linspace(0, 2 * np.pi, 30)
@@ -108,7 +106,6 @@ class FlightEnvironment:
             x = cx + r * np.cos(theta)
             y = cy + r * np.sin(theta)
 
-            # 移除label='Obstacles'，避免图例处理异常
             ax.plot_surface(x, y, z, color='skyblue', alpha=0.5)
             theta2 = np.linspace(0, 2*np.pi, 30)
             x_top = cx + r * np.cos(theta2)
@@ -123,45 +120,66 @@ class FlightEnvironment:
         ax.set_xlabel('X (m)')
         ax.set_ylabel('Y (m)')
         ax.set_zlabel('Z (m)')
-        # 改用英文标题，彻底消除中文字体问题（如需中文，需确保环境有对应字体）
         ax.set_title('3D Flight Environment: Discrete Path vs Smooth Trajectory')
 
-        # 3. 绘制离散路径（仅给有效元素加label，避免重复）
-        discrete_path_label = True  # 控制图例只添加一次
-        if path is not None:
-            path = np.array(path, dtype=np.float64)
-            if path.ndim == 2 and path.shape[1] == 3:
-                xs, ys, zs = path[:, 0], path[:, 1], path[:, 2]
-                
-                # 离散路径连线（粗红，虚线，添加有效label）
+        label_switch = True  # 控制起始点图例只添加一次
+        # 3.1 绘制Theta*离散路径
+        if path_thetastar is not None:
+            path_thetastar = np.array(path_thetastar, dtype=np.float64)
+            if path_thetastar.ndim == 2 and path_thetastar.shape[1] == 3:
+                xs, ys, zs = path_thetastar[:, 0], path_thetastar[:, 1], path_thetastar[:, 2]
+                # Theta*路径连线（暗红虚线，独特样式）
                 ax.plot(xs, ys, zs, linewidth=2.5, color='darkred', linestyle='--', 
-                        alpha=0.8, label='Discrete Path' if discrete_path_label else "")
-                
-                # 离散路径点（小巧，金色带黑边，散点不重复加label）
+                        alpha=0.8, label='Theta* Discrete Path')
+                # Theta*路径点
                 n_points = len(xs)
                 if n_points >= 1:
-                    # 首尾点（仅给起始点加label，避免图例重复）
+                    # 起始点（金色*，只加一次图例）
                     ax.scatter(xs[0], ys[0], zs[0], s=80, color='gold', marker='*', 
-                               edgecolors='black', linewidth=0.5, label='Start Point' if discrete_path_label else "")
-                    ax.scatter(xs[-1], ys[-1], zs[-1], s=80, color='limegreen', marker='*', 
-                               edgecolors='black', linewidth=0.5)
-                    # 中间点（无label，避免图例冗余）
+                               edgecolors='black', linewidth=0.5, label='Start Point' if label_switch else "")
+                    # 终点（深绿*）
+                    ax.scatter(xs[-1], ys[-1], zs[-1], s=80, color='darkgreen', marker='*', 
+                               edgecolors='black', linewidth=0.5, label='Goal Point' if label_switch else "")
+                    # 中间点（宝蓝圆点）
                     if n_points > 2:
                         ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=25, color='royalblue', 
-                                   marker='o', alpha=0.9)
-                    discrete_path_label = False  # 关闭label开关，避免重复
+                                   marker='o', alpha=0.9, label='Theta* Middle Points' if label_switch else "")
+                    label_switch = False  # 关闭开关，避免图例重复
 
-        # 4. 绘制光滑轨迹（添加有效label，与离散路径区分）
-        if trajectory is not None:
-            trajectory = np.array(trajectory, dtype=np.float64)
-            if trajectory.ndim == 2 and trajectory.shape[1] == 3:
-                traj_x, traj_y, traj_z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
-                
-                # 光滑轨迹连线（细蓝，实线，添加label）
-                ax.plot(traj_x, traj_y, traj_z, linewidth=1.8, color='cornflowerblue', 
-                        alpha=0.9, label='Smooth Trajectory')
+        if path_astar is not None:
+            path_astar = np.array(path_astar, dtype=np.float64)
+            if path_astar.ndim == 2 and path_astar.shape[1] == 3:
+                xs, ys, zs = path_astar[:, 0], path_astar[:, 1], path_astar[:, 2]
+                # A*路径连线（深蓝点划线，独特样式）
+                ax.plot(xs, ys, zs, linewidth=2.5, color='navy', linestyle='-.', 
+                        alpha=0.8, label='A* Discrete Path')
+                # A*路径点
+                n_points = len(xs)
+                if n_points >= 1:
+                    # 起始点/终点（复用已有样式，不重复加图例）
+                    ax.scatter(xs[0], ys[0], zs[0], s=80, color='gold', marker='*', 
+                               edgecolors='black', linewidth=0.5)
+                    ax.scatter(xs[-1], ys[-1], zs[-1], s=80, color='darkgreen', marker='*', 
+                               edgecolors='black', linewidth=0.5)
+                    # 中间点（橙红三角，区分Theta*）
+                    if n_points > 2:
+                        ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=30, color='coral', 
+                                   marker='^', alpha=0.9, label='A* Middle Points')
+                        
+        if trajectory_thetastar is not None:
+            trajectory_thetastar = np.array(trajectory_thetastar, dtype=np.float64)
+            if trajectory_thetastar.ndim == 2 and trajectory_thetastar.shape[1] == 3:
+                traj_x, traj_y, traj_z = trajectory_thetastar[:, 0], trajectory_thetastar[:, 1], trajectory_thetastar[:, 2]
+                ax.plot(traj_x, traj_y, traj_z, linewidth=1.8, color='crimson', 
+                        alpha=0.9, label='Theta* Smooth Trajectory')
 
-        # 5. 显示图例（仅包含有效元素，无3D曲面，避免报错）
+        if trajectory_astar is not None:
+            trajectory_astar = np.array(trajectory_astar, dtype=np.float64)
+            if trajectory_astar.ndim == 2 and trajectory_astar.shape[1] == 3:
+                traj_x, traj_y, traj_z = trajectory_astar[:, 0], trajectory_astar[:, 1], trajectory_astar[:, 2]
+                ax.plot(traj_x, traj_y, traj_z, linewidth=1.8, color='deepskyblue', 
+                        alpha=0.9, label='A* Smooth Trajectory')
+
         ax.legend(loc='best', fontsize=8)
         self.set_axes_equal(ax)
         plt.show()

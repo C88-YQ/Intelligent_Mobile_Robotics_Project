@@ -502,8 +502,8 @@ def plan_flight_path(env, start, goal):
     """对外暴露的路径规划接口，方便main.py调用（无需修改，直接兼容）"""
 
     start_time = time.time()
-    planner = ThetaStar3DPathPlanner(env)
-    path = planner.plan_path(start, goal, step_size=1.0)
+    planner_thetastar = ThetaStar3DPathPlanner(env)
+    path_thetastar = planner_thetastar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
     print(f"Theta*路径规划耗时：{end_time - start_time:.4f}秒")
 
@@ -513,4 +513,4 @@ def plan_flight_path(env, start, goal):
     end_time = time.time()
     print(f"A*路径规划耗时：{end_time - start_time:.4f}秒")
     
-    return path
+    return path_thetastar, path_astar

@@ -57,40 +57,40 @@ class CubicPolynomialTrajectoryGenerator:
         
         return self.trajectory_t, trajectory_3d  # 返回轨迹3D坐标，方便传入plot_cylinders
     
-    def plot_trajectory(self):
-        """可视化轨迹时间历史（原有功能，保留）"""
+    def plot_trajectory(self, algorithm_name="Theta*"):
+        """可视化轨迹时间历史"""
         if self.trajectory_t is None:
             self.generate_trajectory()
         
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
         
         # 绘制x轴轨迹
-        ax1.plot(self.trajectory_t, self.trajectory_x, 'b-', linewidth=2, label='光滑轨迹(x)')
-        ax1.scatter(self.time_nodes, self.path[:, 0], c='r', s=50, label='离散路径点(x)')
-        ax1.set_ylabel('x 坐标 (m)')
-        ax1.set_title('无人机轨迹时间历史')
+        ax1.plot(self.trajectory_t, self.trajectory_x, 'b-', linewidth=2, label='Smooth Trajectory(x)')
+        ax1.scatter(self.time_nodes, self.path[:, 0], c='r', s=50, label='Waypoints(x)')
+        ax1.set_ylabel('x / m')
+        ax1.set_title('Trajectory Time History - {}'.format(algorithm_name))
         ax1.grid(True, alpha=0.3)
         ax1.legend()
         
         # 绘制y轴轨迹
-        ax2.plot(self.trajectory_t, self.trajectory_y, 'g-', linewidth=2, label='光滑轨迹(y)')
-        ax2.scatter(self.time_nodes, self.path[:, 1], c='r', s=50, label='离散路径点(y)')
-        ax2.set_ylabel('y 坐标 (m)')
+        ax2.plot(self.trajectory_t, self.trajectory_y, 'g-', linewidth=2, label='Smooth Trajectory(y)')
+        ax2.scatter(self.time_nodes, self.path[:, 1], c='r', s=50, label='Waypoints(y)')
+        ax2.set_ylabel('y / m')
         ax2.grid(True, alpha=0.3)
         ax2.legend()
         
         # 绘制z轴轨迹
-        ax3.plot(self.trajectory_t, self.trajectory_z, 'm-', linewidth=2, label='光滑轨迹(z)')
-        ax3.scatter(self.time_nodes, self.path[:, 2], c='r', s=50, label='离散路径点(z)')
-        ax3.set_xlabel('时间 (s)')
-        ax3.set_ylabel('z 坐标 (m)')
+        ax3.plot(self.trajectory_t, self.trajectory_z, 'm-', linewidth=2, label='Smooth Trajectory(z)')
+        ax3.scatter(self.time_nodes, self.path[:, 2], c='r', s=50, label='Waypoints(z)')
+        ax3.set_xlabel('t / s')
+        ax3.set_ylabel('z / m')
         ax3.grid(True, alpha=0.3)
         ax3.legend()
         
         plt.tight_layout()
         plt.show()
 
-def generate_and_plot_flight_trajectory(path):
+def generate_and_plot_flight_trajectory(path, algorithm_name="Theta*"):
     """对外暴露的轨迹生成与可视化接口，返回光滑轨迹3D坐标"""
     path_np = np.array(path, dtype=np.float64)
     if path_np.ndim != 2 or path_np.shape[1] != 3:
@@ -98,6 +98,6 @@ def generate_and_plot_flight_trajectory(path):
     
     trajectory_generator = CubicPolynomialTrajectoryGenerator(path_np)
     traj_t, traj_3d = trajectory_generator.generate_trajectory()  # 提取3D轨迹坐标
-    trajectory_generator.plot_trajectory()
+    trajectory_generator.plot_trajectory(algorithm_name)
     
     return traj_3d  # 返回光滑轨迹，用于3D同图对比
