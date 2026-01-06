@@ -9,12 +9,16 @@ plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimHei']  # 优先英文，�
 plt.rcParams['axes.unicode_minus'] = False  # 解决负号无法显示问题
 
 class FlightEnvironment:
-    def __init__(self,obs_num):
+    def __init__(self,obs_num, start=None, goal=None, safe_radius=0.4):
         self.env_width = 20.0
         self.env_length = 20.0
         self.env_height = 5
         self.space_size = (self.env_width,self.env_length,self.env_height)
         self._obs_num = obs_num
+
+        self.start = np.array(start) if start is not None else None
+        self.goal = np.array(goal) if goal is not None else None
+        self.safe_radius = safe_radius
 
         self.cylinders = self.generate_random_cylinders(self.space_size,self._obs_num,0.1,0.3,5,5)
 
@@ -46,8 +50,20 @@ class FlightEnvironment:
                 if dist < (r + c[3]):  
                     no_overlapping = False
                     break
+            
+            not_cover_start_goal = True
+            if self.start is not None:
+                sx, sy, _ = self.start
+                dist_to_start = np.hypot(x - sx, y - sy)
+                if dist_to_start < (r + self.safe_radius):
+                    not_cover_start_goal = False
+            if self.goal is not None and not_cover_start_goal:
+                gx, gy, _ = self.goal
+                dist_to_goal = np.hypot(x - gx, y - gy)
+                if dist_to_goal < (r + self.safe_radius):
+                    not_cover_start_goal = False
 
-            if no_overlapping:
+            if no_overlapping and not_cover_start_goal:
                 cylinders.append(candidate)
 
         if len(cylinders) < N:

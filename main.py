@@ -4,9 +4,14 @@ from path_planner import plan_flight_path
 from trajectory_generator import generate_and_plot_flight_trajectory
 
 # 初始化飞行环境
-env = FlightEnvironment(50)
 start = (1, 2, 0)
 goal = (18, 18, 3)
+env = FlightEnvironment(
+    obs_num=50,
+    start=start,
+    goal=goal,
+    safe_radius=0.4  # 可根据需求调整安全区域大小
+)
 
 # --------------------------------------------------------------------------------------------------- #
 # 路径规划：生成离散碰撞-free路径
