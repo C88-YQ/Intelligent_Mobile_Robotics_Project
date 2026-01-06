@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 from math import sin,cos,tan
 from mpl_toolkits.mplot3d import Axes3D
 
-plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimHei']  # 优先英文，备选黑体（有中文环境则生效）
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号无法显示问题
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'SimHei']
+plt.rcParams['axes.unicode_minus'] = False
 
 class FlightEnvironment:
     def __init__(self,obs_num, start=None, goal=None, safe_radius=0.4):
@@ -74,6 +74,15 @@ class FlightEnvironment:
     def is_outside(self,point):
         """
         Check whether a 3D point lies outside the environment boundary.
+
+        Parameters:
+            point : tuple or list (x, y, z)
+                The coordinates of the point to be checked.
+
+        Returns:
+            bool
+                True  -> the point is outside the environment limits  
+                False -> the point is within the valid environment region
         """
         x,y,z = point
         if (0 <= x <= self.env_width and
@@ -86,7 +95,19 @@ class FlightEnvironment:
     
     def is_collide(self, point, epsilon=0.2):
         """
-        Check whether a point in 3D space collides with a given set of cylinders.
+            Check whether a point in 3D space collides with a given set of cylinders (including a safety margin).
+
+            Parameters:
+                point: A numpy array or tuple of (x, y, z)
+                cylinders: An N×4 numpy array, each row is [cx, cy, h, r]
+                        where cx, cy are the cylinder center coordinates in XY,
+                        h is the height, and r is the radius
+                epsilon: Safety margin; if the point is closer than (r + epsilon),
+                        it is also considered a collision
+
+            Returns:
+                True  -> Collision (or too close)
+                False -> Safe
         """
         cylinders = self.cylinders
         px, py, pz = point
@@ -102,10 +123,7 @@ class FlightEnvironment:
     
     def plot_cylinders(self, path_thetastar=None, path_astar=None, trajectory_thetastar=None, trajectory_astar=None):
         """
-        可视化障碍物、离散路径、光滑轨迹（同一张3D图对比，修复图例和中文问题）
-        参数:
-            path: 离散路径点（N×3数组）
-            trajectory: 光滑轨迹（M×3数组，连续坐标）
+        cylinders: N×4 array, [cx, cy, h, r]
         """
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -129,7 +147,6 @@ class FlightEnvironment:
             z_top = np.ones_like(theta2) * h
             ax.plot_trisurf(x_top, y_top, z_top, color='steelblue', alpha=0.6)
 
-        # 2. 设置坐标轴
         ax.set_xlim(0, self.env_width)
         ax.set_ylim(0, self.env_length)
         ax.set_zlim(0, self.env_height)
@@ -138,57 +155,51 @@ class FlightEnvironment:
         ax.set_zlabel('Z (m)')
         ax.set_title('3D Flight Environment: Discrete Path vs Smooth Trajectory')
 
-        label_switch = True  # 控制起始点图例只添加一次
-        # 3.1 绘制Theta*离散路径
+        label_switch = True
+        # 绘制 Theta* Waypoints
         if path_thetastar is not None:
             path_thetastar = np.array(path_thetastar, dtype=np.float64)
             if path_thetastar.ndim == 2 and path_thetastar.shape[1] == 3:
                 xs, ys, zs = path_thetastar[:, 0], path_thetastar[:, 1], path_thetastar[:, 2]
-                # Theta*路径连线（暗红虚线，独特样式）
                 ax.plot(xs, ys, zs, linewidth=2.5, color='darkred', linestyle='--', 
                         alpha=0.8, label='Theta* Discrete Path')
-                # Theta*路径点
                 n_points = len(xs)
                 if n_points >= 1:
-                    # 起始点（金色*，只加一次图例）
                     ax.scatter(xs[0], ys[0], zs[0], s=80, color='gold', marker='*', 
                                edgecolors='black', linewidth=0.5, label='Start Point' if label_switch else "")
-                    # 终点（深绿*）
                     ax.scatter(xs[-1], ys[-1], zs[-1], s=80, color='darkgreen', marker='*', 
                                edgecolors='black', linewidth=0.5, label='Goal Point' if label_switch else "")
-                    # 中间点（宝蓝圆点）
                     if n_points > 2:
                         ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=25, color='royalblue', 
                                    marker='o', alpha=0.9, label='Theta* Middle Points' if label_switch else "")
-                    label_switch = False  # 关闭开关，避免图例重复
+                    label_switch = False
 
+        # 绘制 A* Waypoints
         if path_astar is not None:
             path_astar = np.array(path_astar, dtype=np.float64)
             if path_astar.ndim == 2 and path_astar.shape[1] == 3:
                 xs, ys, zs = path_astar[:, 0], path_astar[:, 1], path_astar[:, 2]
-                # A*路径连线（深蓝点划线，独特样式）
                 ax.plot(xs, ys, zs, linewidth=2.5, color='navy', linestyle='-.', 
                         alpha=0.8, label='A* Discrete Path')
-                # A*路径点
                 n_points = len(xs)
                 if n_points >= 1:
-                    # 起始点/终点（复用已有样式，不重复加图例）
                     ax.scatter(xs[0], ys[0], zs[0], s=80, color='gold', marker='*', 
                                edgecolors='black', linewidth=0.5)
                     ax.scatter(xs[-1], ys[-1], zs[-1], s=80, color='darkgreen', marker='*', 
                                edgecolors='black', linewidth=0.5)
-                    # 中间点（橙红三角，区分Theta*）
                     if n_points > 2:
                         ax.scatter(xs[1:-1], ys[1:-1], zs[1:-1], s=30, color='coral', 
                                    marker='^', alpha=0.9, label='A* Middle Points')
                         
+        # 绘制 Theta* 光滑轨迹         
         if trajectory_thetastar is not None:
             trajectory_thetastar = np.array(trajectory_thetastar, dtype=np.float64)
             if trajectory_thetastar.ndim == 2 and trajectory_thetastar.shape[1] == 3:
                 traj_x, traj_y, traj_z = trajectory_thetastar[:, 0], trajectory_thetastar[:, 1], trajectory_thetastar[:, 2]
                 ax.plot(traj_x, traj_y, traj_z, linewidth=1.8, color='crimson', 
                         alpha=0.9, label='Theta* Smooth Trajectory')
-
+                
+        # 绘制 A* 光滑轨迹
         if trajectory_astar is not None:
             trajectory_astar = np.array(trajectory_astar, dtype=np.float64)
             if trajectory_astar.ndim == 2 and trajectory_astar.shape[1] == 3:
@@ -201,7 +212,9 @@ class FlightEnvironment:
         plt.show()
 
     def set_axes_equal(self,ax):
-        """Make axes of 3D plot have equal scale."""
+        """Make axes of 3D plot have equal scale.
+        Compatible with Matplotlib ≥ 1.0.0
+        """
         x_limits = ax.get_xlim3d()
         y_limits = ax.get_ylim3d()
         z_limits = ax.get_zlim3d()

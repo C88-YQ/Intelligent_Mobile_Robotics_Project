@@ -4,7 +4,7 @@ Within your implementation, you may call `env.is_collide()` and `env.is_outside(
 to verify whether candidate path points collide with obstacles or exceed the
 environment boundaries.
 
-You are required to write your own path planning algorithm. Copying or calling 
+You are required to write the path planning algorithm by yourself. Copying or calling 
 any existing path planning algorithms from others is strictly
 prohibited. Please avoid using external packages beyond common Python libraries
 such as `numpy`, `math`, or `scipy`. If you must use additional packages, you
@@ -34,7 +34,7 @@ class OccupiedMap3D:
         start_time = time.time()
         self._build_occupied_map()
         end_time = time.time()
-        print(f"构建3D占用栅格地图耗时：{end_time - start_time:.4f}秒")
+        print(f"Building 3D Occupied Map Time: {end_time - start_time:.4f} s")
 
     def _build_occupied_map(self):
         self.grid_size_x = int(np.ceil((self.x_max_world - self.x_min_world) / self.grid_resolution))
@@ -94,9 +94,8 @@ class OccupiedMap3D:
         return self.occupied_map[x_grid, y_grid, z_grid] == 1
     
 class AStar3DPathPlanner:
-    """自主实现的3D A*路径规划器"""
     def __init__(self, env):
-        self.env = env  # 飞行环境实例
+        self.env = env
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
         self.safety_distance = 0.2  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
 
@@ -136,17 +135,13 @@ class AStar3DPathPlanner:
         
         # 遍历环境中所有圆柱障碍物
         for cx, cy, h, r in self.env.cylinders:
-            # 1. 先判断点是否在圆柱的高度范围内（z轴）
             if z < 0 or z > h:
-                # 点在圆柱高度外，最短距离为点到圆柱上下底面中心的距离 - 圆柱半径
                 dist_to_cylinder_center_xy = math.sqrt((x - cx)**2 + (y - cy)**2)
                 dist_to_cylinder_surface = dist_to_cylinder_center_xy - r
             else:
-                # 点在圆柱高度内，最短距离为点到圆柱中心（xy平面）的距离 - 圆柱半径
                 dist_to_cylinder_center_xy = math.sqrt((x - cx)**2 + (y - cy)**2)
                 dist_to_cylinder_surface = dist_to_cylinder_center_xy - r
             
-            # 更新到最近障碍物的距离（取非负，避免点在圆柱内部时距离为负）
             current_dist = max(0.0, dist_to_cylinder_surface)
             if current_dist < min_distance:
                 min_distance = current_dist
@@ -172,7 +167,6 @@ class AStar3DPathPlanner:
             if dist_to_nearest_obstacle < self.safety_distance:
                 return False
         
-        # 所有条件满足，点有效
         return True
     
     def plan_path(self, start, goal, step_size=1.0):
@@ -185,12 +179,11 @@ class AStar3DPathPlanner:
         返回:
             N×3的numpy数组，包含碰撞-free路径
         """
-        # 验证起始点和目标点的有效性
         if not self._is_valid_point(start):
-            raise ValueError("起始点无效（越界或碰撞障碍物）")
+            raise ValueError("Start point is invalid (out of bounds or collides with obstacles)")
         if not self._is_valid_point(goal):
-            raise ValueError("目标点无效（越界或碰撞障碍物）")
-        
+            raise ValueError("Goal point is invalid (out of bounds or collides with obstacles)")
+
         # 初始化A*算法的核心数据结构
         open_heap = []  # 优先队列（小顶堆）
         closed_set = set()  # 已访问节点集合
@@ -207,19 +200,15 @@ class AStar3DPathPlanner:
         
         # A*主循环
         while open_heap:
-            # 取出f_score最小的节点
             current_f, current_point = heappop(open_heap)
             
-            # 到达目标点，回溯路径
             if self._heuristic(current_point, goal_tuple) < step_size:
                 return self._reconstruct_path(came_from, current_point, goal_tuple)
             
-            # 标记当前节点为已访问
             if current_point in closed_set:
                 continue
             closed_set.add(current_point)
             
-            # 遍历所有可能的移动方向
             for delta in self.movement_deltas:
                 # 计算下一步节点
                 dx, dy, dz = delta
@@ -246,7 +235,7 @@ class AStar3DPathPlanner:
                     heappush(open_heap, (f_score[next_tuple], next_tuple))
         
         # 未找到路径时抛出异常
-        raise RuntimeError("无法找到从起始点到目标点的有效路径")
+        raise RuntimeError("Unable to find a valid path from start to goal")
     
     def _reconstruct_path(self, came_from, current, goal):
         """回溯重建路径，并转换为numpy数组格式"""
@@ -306,21 +295,16 @@ class ThetaStar3DPathPlanner:
         遍历所有圆柱障碍物，计算点到圆柱表面的最短距离
         """
         x, y, z = point
-        min_distance = float('inf')  # 初始化最近距离为无穷大
+        min_distance = float('inf')
         
-        # 遍历环境中所有圆柱障碍物
         for cx, cy, h, r in self.env.cylinders:
-            # 1. 先判断点是否在圆柱的高度范围内（z轴）
             if z < 0 or z > h:
-                # 点在圆柱高度外，最短距离为点到圆柱上下底面中心的距离 - 圆柱半径
                 dist_to_cylinder_center_xy = math.sqrt((x - cx)**2 + (y - cy)**2)
                 dist_to_cylinder_surface = dist_to_cylinder_center_xy - r
             else:
-                # 点在圆柱高度内，最短距离为点到圆柱中心（xy平面）的距离 - 圆柱半径
                 dist_to_cylinder_center_xy = math.sqrt((x - cx)**2 + (y - cy)**2)
                 dist_to_cylinder_surface = dist_to_cylinder_center_xy - r
             
-            # 更新到最近障碍物的距离（取非负，避免点在圆柱内部时距离为负）
             current_dist = max(0.0, dist_to_cylinder_surface)
             if current_dist < min_distance:
                 min_distance = current_dist
@@ -386,16 +370,16 @@ class ThetaStar3DPathPlanner:
         θ*核心：路径拉直优化
         尝试将next_point直接连接到current_point的父节点（parent_point），若LOS可达且代价更优，则更新父节点
         """
-        # 情况1：current_point无父节点（即为起始点），直接返回常规代价（与A*一致）
+        # current_point无父节点（即为起始点），直接返回常规代价（与A*一致）
         if parent_point is None:
             move_cost = self._heuristic(current_point, next_point) * step_size
             return g_score[current_point] + move_cost, current_point  # 返回代价+默认父节点
         
-        # 情况2：计算常规路径代价（current_point → next_point）
+        # 计算常规路径代价（current_point → next_point）
         cost_current_to_next = self._heuristic(current_point, next_point) * step_size
         tentative_g_from_current = g_score[current_point] + cost_current_to_next
         
-        # 情况3：检测parent_point → next_point的直线可视性，尝试路径拉直（含安全距离验证）
+        # 检测parent_point → next_point的直线可视性，尝试路径拉直（含安全距离验证）
         if self._line_of_sight(parent_point, next_point):
             cost_parent_to_next = self._heuristic(parent_point, next_point) * step_size
             tentative_g_from_parent = g_score[parent_point] + cost_parent_to_next
@@ -404,7 +388,7 @@ class ThetaStar3DPathPlanner:
             if tentative_g_from_parent < tentative_g_from_current:
                 return tentative_g_from_parent, parent_point
         
-        # 情况4：无更优拉直路径，保留常规父节点（current_point）和代价
+        # 无更优拉直路径，保留常规父节点（current_point）和代价
         return tentative_g_from_current, current_point
     
     def plan_path(self, start, goal, step_size=1.0):
@@ -431,7 +415,6 @@ class ThetaStar3DPathPlanner:
         f_score[start_tuple] = self._heuristic(start_tuple, goal_tuple)
         heappush(open_heap, (f_score[start_tuple], start_tuple))
         
-        # θ*主循环（继承A*框架，优化节点更新逻辑）
         while open_heap:
             # 取出f_score最小的节点
             current_f, current_point = heappop(open_heap)
@@ -464,12 +447,10 @@ class ThetaStar3DPathPlanner:
                 if next_tuple in closed_set:
                     continue
                 
-                # θ*核心优化：更新节点（尝试路径拉直，获取最优代价和父节点）
                 tentative_g_score, best_parent = self._update_vertex(
                     current_point, next_point, current_parent, came_from, g_score, step_size
                 )
                 
-                # 更新节点信息（如果找到更优路径）
                 if next_tuple not in g_score or tentative_g_score < g_score.get(next_tuple, float('inf')):
                     came_from[next_tuple] = best_parent  # 记录最优父节点（可能是current_point或current_parent）
                     g_score[next_tuple] = tentative_g_score
@@ -477,7 +458,7 @@ class ThetaStar3DPathPlanner:
                     heappush(open_heap, (f_score[next_tuple], next_tuple))
         
         # 未找到路径时抛出异常
-        raise RuntimeError("无法找到从起始点到目标点的有效路径（可能无满足安全距离的可行路径）")
+        raise RuntimeError("Unable to find a valid path from start to goal")
     
     def _reconstruct_path(self, came_from, current, goal):
         """回溯重建路径，并转换为numpy数组格式（与原A*保持一致，保证格式兼容）"""
@@ -499,18 +480,17 @@ class ThetaStar3DPathPlanner:
         return path_np
 
 def plan_flight_path(env, start, goal):
-    """对外暴露的路径规划接口，方便main.py调用（无需修改，直接兼容）"""
 
     start_time = time.time()
     planner_thetastar = ThetaStar3DPathPlanner(env)
     path_thetastar = planner_thetastar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
-    print(f"Theta*路径规划耗时：{end_time - start_time:.4f}秒")
+    print(f"Planning time (Theta*): {end_time - start_time:.4f} s")
 
     start_time = time.time()
     planner_astar = AStar3DPathPlanner(env)
     path_astar = planner_astar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
-    print(f"A*路径规划耗时：{end_time - start_time:.4f}秒")
+    print(f"Planning time (A*): {end_time - start_time:.4f} s")
     
     return path_thetastar, path_astar
