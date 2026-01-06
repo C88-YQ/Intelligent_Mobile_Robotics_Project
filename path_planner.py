@@ -15,12 +15,100 @@ import math
 from heapq import heappush, heappop
 import time
 
+class OccupiedMap3D:
+    def __init__(self, env, grid_resolution=0.05, safety_distance=0.2):
+        self.env = env
+        self.grid_resolution = grid_resolution
+        self.safety_distance = safety_distance
+
+        self.x_min_world = 0.0
+        self.y_min_world = 0.0
+        self.z_min_world = 0.0
+        self.x_max_world = env.env_width
+        self.y_max_world = env.env_length
+        self.z_max_world = env.env_height
+
+        # 创建 occupied_map 0 = free, 1 = occupied (obstacle + safety_distance)
+        self.occupied_map = None
+
+        start_time = time.time()
+        self._build_occupied_map()
+        end_time = time.time()
+        print(f"构建3D占用栅格地图耗时：{end_time - start_time:.4f}秒")
+
+    def _build_occupied_map(self):
+        self.grid_size_x = int(np.ceil((self.x_max_world - self.x_min_world) / self.grid_resolution))
+        self.grid_size_y = int(np.ceil((self.y_max_world - self.y_min_world) / self.grid_resolution))
+        self.grid_size_z = int(np.ceil((self.z_max_world - self.z_min_world) / self.grid_resolution))
+
+        self.occupied_map = np.zeros((self.grid_size_x, self.grid_size_y, self.grid_size_z), dtype=np.uint8)
+
+        for cx, cy, h, r in self.env.cylinders:
+            r_inflated = r + self.safety_distance
+
+            # ceil 向上取整
+            x_grid_min = int(max(0, np.floor((cx - r_inflated) / self.grid_resolution)))
+            x_grid_max = int(min(self.grid_size_x - 1, np.ceil((cx + r_inflated) / self.grid_resolution)))
+            y_grid_min = int(max(0, np.floor((cy - r_inflated) / self.grid_resolution)))
+            y_grid_max = int(min(self.grid_size_y - 1, np.ceil((cy + r_inflated) / self.grid_resolution)))
+
+            # 所有圆柱障碍物的高度均从0开始
+            z_grid_max = int(min(self.grid_size_z - 1, np.ceil(h / self.grid_resolution)))
+
+            for x_grid in range(x_grid_min, x_grid_max):
+                for y_grid in range(y_grid_min, y_grid_max):
+                    # 栅格坐标转换为世界坐标
+                    x_world = x_grid * self.grid_resolution + self.grid_resolution / 2.0
+                    y_world = y_grid * self.grid_resolution + self.grid_resolution / 2.0
+
+                    dist = np.sqrt((x_world - cx) ** 2 + (y_world - cy) ** 2)
+                    if dist <= r_inflated:
+                        for z_grid in range(0, z_grid_max + 1):
+                            self.occupied_map[x_grid, y_grid, z_grid] = 1  # 标记为占用
+
+    def world_to_grid(self, point):
+        x, y, z = point
+
+        if (x < self.x_min_world or x >= self.x_max_world or
+            y < self.y_min_world or y >= self.y_max_world or
+            z < self.z_min_world or z >= self.z_max_world):
+            return None  # 超出环境边界
+        
+
+        x_grid = int(round(x / self.grid_resolution))
+        y_grid = int(round(y / self.grid_resolution))
+        z_grid = int(round(z / self.grid_resolution))
+
+        if (x_grid < 0 or x_grid >= self.grid_size_x or
+            y_grid < 0 or y_grid >= self.grid_size_y or
+            z_grid < 0 or z_grid >= self.grid_size_z):
+            return None  # 超出栅格边界
+        
+        return (x_grid, y_grid, z_grid)
+    
+    def is_occupied(self, point):
+        grid_coords = self.world_to_grid(point)
+        if grid_coords is None:
+            return True  # 超出边界视为占用
+        x_grid, y_grid, z_grid = grid_coords
+        return self.occupied_map[x_grid, y_grid, z_grid] == 1
+    
 class AStar3DPathPlanner:
     """自主实现的3D A*路径规划器"""
     def __init__(self, env):
         self.env = env  # 飞行环境实例
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
-    
+        self.safety_distance = 0.2  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
+
+        self.use_occupied_map = False
+
+        if self.use_occupied_map:
+            self.occupied_map = OccupiedMap3D(
+                env=env,
+                grid_resolution=0.05,
+                safety_distance=self.safety_distance
+            )
+
     def _get_3d_movement_deltas(self):
         """生成3D空间中的26个移动方向（包含上下左右前后及对角线）"""
         deltas = []
@@ -38,15 +126,53 @@ class AStar3DPathPlanner:
         x2, y2, z2 = goal
         return math.sqrt((x1-x2)**2 + (y1-y2)**2 + (z1-z2)**2)
     
+    def _distance_to_nearest_obstacle(self, point):
+        """
+        计算当前点到最近障碍物的距离
+        遍历所有圆柱障碍物，计算点到圆柱表面的最短距离
+        """
+        x, y, z = point
+        min_distance = float('inf')  # 初始化最近距离为无穷大
+        
+        # 遍历环境中所有圆柱障碍物
+        for cx, cy, h, r in self.env.cylinders:
+            # 1. 先判断点是否在圆柱的高度范围内（z轴）
+            if z < 0 or z > h:
+                # 点在圆柱高度外，最短距离为点到圆柱上下底面中心的距离 - 圆柱半径
+                dist_to_cylinder_center_xy = math.sqrt((x - cx)**2 + (y - cy)**2)
+                dist_to_cylinder_surface = dist_to_cylinder_center_xy - r
+            else:
+                # 点在圆柱高度内，最短距离为点到圆柱中心（xy平面）的距离 - 圆柱半径
+                dist_to_cylinder_center_xy = math.sqrt((x - cx)**2 + (y - cy)**2)
+                dist_to_cylinder_surface = dist_to_cylinder_center_xy - r
+            
+            # 更新到最近障碍物的距离（取非负，避免点在圆柱内部时距离为负）
+            current_dist = max(0.0, dist_to_cylinder_surface)
+            if current_dist < min_distance:
+                min_distance = current_dist
+        
+        return min_distance
+
     def _is_valid_point(self, point):
         """验证点是否有效（不越界、不碰撞）"""
-        x, y, z = point
-        # 转换为整数坐标（环境碰撞检测通常基于网格）
-        int_point = (int(round(x)), int(round(y)), int(round(z)))
-        if self.env.is_outside(int_point):
-            return False
-        if self.env.is_collide(int_point):
-            return False
+        if self.use_occupied_map:
+            if self.occupied_map.is_occupied(point):
+                return False
+        else:
+            # 验证是否越界
+            if self.env.is_outside(point):
+                return False
+
+            # 验证是否与障碍物碰撞
+            if self.env.is_collide(point):
+                return False
+
+            # 与最近障碍物保持足够的安全距离
+            dist_to_nearest_obstacle = self._distance_to_nearest_obstacle(point)
+            if dist_to_nearest_obstacle < self.safety_distance:
+                return False
+        
+        # 所有条件满足，点有效
         return True
     
     def plan_path(self, start, goal, step_size=1.0):
@@ -141,14 +267,22 @@ class AStar3DPathPlanner:
         
         return path_np
     
-class ThetaStar3DPathPlanner:  # 保留类名，确保main.py无需修改，内部逻辑为θ*（带安全距离）
-    """自主实现的3D θ*（Theta Star）路径规划器（带障碍物安全距离，生成更安全平滑路径）"""
+class ThetaStar3DPathPlanner:
     def __init__(self, env):
-        self.env = env  # 飞行环境实例
+        self.env = env
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
-        self.los_sample_step = 0.4  # LOS直线检测采样步长（越小越精确，兼顾效率）
+        self.los_sample_step = 0.2  # LOS直线检测采样步长（越小越精确，兼顾效率）
         self.safety_distance = 0.4  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
-    
+
+        self.use_occupied_map = True  # 启用占用地图
+
+        if self.use_occupied_map:
+            self.occupied_map = OccupiedMap3D(
+                env=env,
+                grid_resolution=0.05,
+                safety_distance=self.safety_distance
+            )
+
     def _get_3d_movement_deltas(self):
         """生成3D空间中的26个移动方向（包含上下左右前后及对角线）"""
         deltas = []
@@ -194,25 +328,23 @@ class ThetaStar3DPathPlanner:  # 保留类名，确保main.py无需修改，内�
         return min_distance
     
     def _is_valid_point(self, point):
-        """
-        验证点是否有效（不越界、不碰撞、与障碍物保持最小安全距离）
-        新增：点到最近障碍物的距离 ≥ 安全距离
-        """
-        x, y, z = point
-        # 步骤1：转换为整数坐标，验证是否越界（原有逻辑）
-        int_point = (int(round(x)), int(round(y)), int(round(z)))
-        if self.env.is_outside(int_point):
-            return False
-        
-        # 这个步骤应该就没用了
-        # 步骤2：验证是否与障碍物碰撞（原有逻辑，保底）
-        if self.env.is_collide(int_point):
-            return False
-        
-        # 步骤3：新增验证 - 与最近障碍物保持足够的安全距离
-        dist_to_nearest_obstacle = self._distance_to_nearest_obstacle(point)
-        if dist_to_nearest_obstacle < self.safety_distance:
-            return False
+
+        if self.use_occupied_map:
+            if self.occupied_map.is_occupied(point):
+                return False
+        else:
+            # 验证是否越界
+            if self.env.is_outside(point):
+                return False
+
+            # 验证是否与障碍物碰撞
+            if self.env.is_collide(point):
+                return False
+
+            # 与最近障碍物保持足够的安全距离
+            dist_to_nearest_obstacle = self._distance_to_nearest_obstacle(point)
+            if dist_to_nearest_obstacle < self.safety_distance:
+                return False
         
         # 所有条件满足，点有效
         return True
