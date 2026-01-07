@@ -94,12 +94,12 @@ class OccupiedMap3D:
         return self.occupied_map[x_grid, y_grid, z_grid] == 1
     
 class AStar3DPathPlanner:
-    def __init__(self, env, inflation_radius=0.4):
+    def __init__(self, env, inflation_radius=0.4, use_occupied_map=True):
         self.env = env
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
         self.inflation_radius = inflation_radius  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
 
-        self.use_occupied_map = False
+        self.use_occupied_map = use_occupied_map
 
         if self.use_occupied_map:
             self.occupied_map = OccupiedMap3D(
@@ -257,13 +257,13 @@ class AStar3DPathPlanner:
         return path_np
     
 class ThetaStar3DPathPlanner:
-    def __init__(self, env, inflation_radius=0.4):
+    def __init__(self, env, inflation_radius=0.4, use_occupied_map=True):
         self.env = env
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
         self.los_sample_step = 0.2  # LOS直线检测采样步长（越小越精确，兼顾效率）
         self.inflation_radius = inflation_radius  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
 
-        self.use_occupied_map = True  # 启用占用地图
+        self.use_occupied_map = use_occupied_map  # 启用占用地图
 
         if self.use_occupied_map:
             self.occupied_map = OccupiedMap3D(
@@ -479,13 +479,13 @@ class ThetaStar3DPathPlanner:
 def plan_flight_path(env, start, goal):
 
     start_time = time.time()
-    planner_thetastar = ThetaStar3DPathPlanner(env,inflation_radius=0.4)
+    planner_thetastar = ThetaStar3DPathPlanner(env,inflation_radius=0.4, use_occupied_map=True)
     path_thetastar = planner_thetastar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
     print(f"Planning time (Theta*): {end_time - start_time:.4f} s")
 
     start_time = time.time()
-    planner_astar = AStar3DPathPlanner(env,inflation_radius=0.0)
+    planner_astar = AStar3DPathPlanner(env,inflation_radius=0.0, use_occupied_map=True)
     path_astar = planner_astar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
     print(f"Planning time (A*): {end_time - start_time:.4f} s")

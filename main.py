@@ -22,8 +22,8 @@ path_astar = np.array(path_astar, dtype=np.float64)
 
 # --------------------------------------------------------------------------------------------------- #
 # Trajectory Generation：生成并可视化光滑轨迹
-smooth_trajectory_thetastar = generate_and_plot_flight_trajectory(path_thetastar, "Theta*")
-smooth_trajectory_astar = generate_and_plot_flight_trajectory(path_astar, "A*")
+smooth_trajectory_thetastar = generate_and_plot_flight_trajectory(path_thetastar, "Theta*", max_segment_dist=3.5)
+smooth_trajectory_astar = generate_and_plot_flight_trajectory(path_astar, "A*", max_segment_dist=3.5)
 
 # --------------------------------------------------------------------------------------------------- #
 # Visualization：显示障碍物、离散路径、光滑轨迹
