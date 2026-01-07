@@ -16,10 +16,10 @@ from heapq import heappush, heappop
 import time
 
 class OccupiedMap3D:
-    def __init__(self, env, grid_resolution=0.05, safety_distance=0.2):
+    def __init__(self, env, grid_resolution=0.05, inflation_radius=0.2):
         self.env = env
         self.grid_resolution = grid_resolution
-        self.safety_distance = safety_distance
+        self.inflation_radius = inflation_radius
 
         self.x_min_world = 0.0
         self.y_min_world = 0.0
@@ -28,7 +28,7 @@ class OccupiedMap3D:
         self.y_max_world = env.env_length
         self.z_max_world = env.env_height
 
-        # 创建 occupied_map 0 = free, 1 = occupied (obstacle + safety_distance)
+        # 创建 occupied_map 0 = free, 1 = occupied (obstacle + inflation_radius)
         self.occupied_map = None
 
         start_time = time.time()
@@ -44,7 +44,7 @@ class OccupiedMap3D:
         self.occupied_map = np.zeros((self.grid_size_x, self.grid_size_y, self.grid_size_z), dtype=np.uint8)
 
         for cx, cy, h, r in self.env.cylinders:
-            r_inflated = r + self.safety_distance
+            r_inflated = r + self.inflation_radius
 
             # ceil 向上取整
             x_grid_min = int(max(0, np.floor((cx - r_inflated) / self.grid_resolution)))
@@ -94,10 +94,10 @@ class OccupiedMap3D:
         return self.occupied_map[x_grid, y_grid, z_grid] == 1
     
 class AStar3DPathPlanner:
-    def __init__(self, env):
+    def __init__(self, env, inflation_radius=0.4):
         self.env = env
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
-        self.safety_distance = 0.2  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
+        self.inflation_radius = inflation_radius  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
 
         self.use_occupied_map = False
 
@@ -105,7 +105,7 @@ class AStar3DPathPlanner:
             self.occupied_map = OccupiedMap3D(
                 env=env,
                 grid_resolution=0.05,
-                safety_distance=self.safety_distance
+                inflation_radius=self.inflation_radius
             )
 
     def _get_3d_movement_deltas(self):
@@ -164,7 +164,7 @@ class AStar3DPathPlanner:
 
             # 与最近障碍物保持足够的安全距离
             dist_to_nearest_obstacle = self._distance_to_nearest_obstacle(point)
-            if dist_to_nearest_obstacle < self.safety_distance:
+            if dist_to_nearest_obstacle < self.inflation_radius:
                 return False
         
         return True
@@ -257,11 +257,11 @@ class AStar3DPathPlanner:
         return path_np
     
 class ThetaStar3DPathPlanner:
-    def __init__(self, env):
+    def __init__(self, env, inflation_radius=0.4):
         self.env = env
         self.movement_deltas = self._get_3d_movement_deltas()  # 3D移动方向（26邻域）
         self.los_sample_step = 0.2  # LOS直线检测采样步长（越小越精确，兼顾效率）
-        self.safety_distance = 0.4  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
+        self.inflation_radius = inflation_radius  # 与障碍物保持的最小安全距离（可按需调整，单位：m）
 
         self.use_occupied_map = True  # 启用占用地图
 
@@ -269,7 +269,7 @@ class ThetaStar3DPathPlanner:
             self.occupied_map = OccupiedMap3D(
                 env=env,
                 grid_resolution=0.05,
-                safety_distance=self.safety_distance
+                inflation_radius=self.inflation_radius
             )
 
     def _get_3d_movement_deltas(self):
@@ -327,7 +327,7 @@ class ThetaStar3DPathPlanner:
 
             # 与最近障碍物保持足够的安全距离
             dist_to_nearest_obstacle = self._distance_to_nearest_obstacle(point)
-            if dist_to_nearest_obstacle < self.safety_distance:
+            if dist_to_nearest_obstacle < self.inflation_radius:
                 return False
         
         # 所有条件满足，点有效
@@ -479,13 +479,13 @@ class ThetaStar3DPathPlanner:
 def plan_flight_path(env, start, goal):
 
     start_time = time.time()
-    planner_thetastar = ThetaStar3DPathPlanner(env)
+    planner_thetastar = ThetaStar3DPathPlanner(env,inflation_radius=0.4)
     path_thetastar = planner_thetastar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
     print(f"Planning time (Theta*): {end_time - start_time:.4f} s")
 
     start_time = time.time()
-    planner_astar = AStar3DPathPlanner(env)
+    planner_astar = AStar3DPathPlanner(env,inflation_radius=0.0)
     path_astar = planner_astar.plan_path(start, goal, step_size=1.0)
     end_time = time.time()
     print(f"Planning time (A*): {end_time - start_time:.4f} s")
