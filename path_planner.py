@@ -335,8 +335,7 @@ class ThetaStar3DPathPlanner:
     
     def _line_of_sight(self, point_a, point_b):
         """
-        θ*核心：3D空间直线可视性检测（LOS）
-        新增：直线上所有采样点均需与障碍物保持最小安全距离
+        3D空间直线可视性检测（LOS）
         """
         x1, y1, z1 = point_a
         x2, y2, z2 = point_b
@@ -367,7 +366,7 @@ class ThetaStar3DPathPlanner:
     
     def _update_vertex(self, current_point, next_point, parent_point, came_from, g_score, step_size):
         """
-        θ*核心：路径拉直优化
+        路径拉直优化
         尝试将next_point直接连接到current_point的父节点（parent_point），若LOS可达且代价更优，则更新父节点
         """
         # current_point无父节点（即为起始点），直接返回常规代价（与A*一致）
@@ -397,11 +396,10 @@ class ThetaStar3DPathPlanner:
         """
         # 验证起始点和目标点的有效性（包含安全距离验证）
         if not self._is_valid_point(start):
-            raise ValueError("起始点无效（越界、碰撞障碍物或安全距离不足）")
+            raise ValueError("Start point is invalid (out of bounds or collides with obstacles)")
         if not self._is_valid_point(goal):
-            raise ValueError("目标点无效（越界、碰撞障碍物或安全距离不足）")
-        
-        # 初始化算法核心数据结构（与A*一致，保留父节点追溯支持）
+            raise ValueError("Goal point is invalid (out of bounds or collides with obstacles)")
+
         open_heap = []  # 优先队列（小顶堆）
         closed_set = set()  # 已访问节点集合
         came_from = {}  # 路径回溯字典（记录每个节点的父节点）
@@ -461,7 +459,6 @@ class ThetaStar3DPathPlanner:
         raise RuntimeError("Unable to find a valid path from start to goal")
     
     def _reconstruct_path(self, came_from, current, goal):
-        """回溯重建路径，并转换为numpy数组格式（与原A*保持一致，保证格式兼容）"""
         path = [current]
         while current in came_from:
             current = came_from[current]

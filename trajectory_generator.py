@@ -17,6 +17,7 @@ to use additional packages, you must clearly explain the reason in your report.
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
+import time
 
 class CubicPolynomialTrajectoryGenerator:
     def __init__(self, path, total_time=None, max_segment_dist=2.5):
@@ -192,8 +193,10 @@ def generate_and_plot_flight_trajectory(path, algorithm_name="Theta*", max_segme
         raise ValueError("Path must be a Nx3 numpy array.")
     
     # 传入最大段距离参数，控制中间点插入阈值
+    start_time = time.time()
     trajectory_generator = CubicPolynomialTrajectoryGenerator(path_np, max_segment_dist=max_segment_dist)
     traj_t, traj_3d = trajectory_generator.generate_trajectory()
+    end_time = time.time()
+    print("{} Trajectory generation took {:.4f} s.".format(algorithm_name, end_time - start_time))
     trajectory_generator.plot_trajectory(algorithm_name)
-    
     return traj_3d
